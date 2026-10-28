@@ -273,4 +273,3 @@ export const SignGuideModal: React.FC<SignGuideModalProps> = ({
     </div>
   );
 };
-

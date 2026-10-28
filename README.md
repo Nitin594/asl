@@ -6,7 +6,7 @@ A modern, ultra-low-latency real-time American Sign Language (ASL) and hand gest
 
 - **In-Browser Vision AI**: Powered by Google MediaPipe Hand Landmarker, tracking 21 3D hand joints at 60 FPS without sending video feeds to any external server (zero latency & 100% private).
 - **ASL Alphabet & Gestures**:
-  - ASL Alphabet letters (`A`, `B`, `C`, `D`, `E`, `F`, `I`, `L`, `O`, `U`, `V`, `W`, `Y`, `S`, etc.)
+  - Recognized static ASL handshapes (`A`, `B`, `C`, `D`, `F`, `I`, `L`, `O`, `S`, `U`, `V`, `W`, `Y`)
   - Common expressive signs: *I Love You* (🤟), *Thumbs Up / Yes* (👍), *Thumbs Down / No* (👎), *Hello / Five* (🖐️), *Victory / Peace* (✌️), *OK / F* (👌).
 - **Smart Word & Sentence Builder**:
   - Sign-hold sensitivity timer with radial visual progress ring.
@@ -37,5 +37,4 @@ npm run dev
 npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser and grant webcam permissions.
-
+Open [http://localhost:3000](http://localhost:3000) in your browser and grant webcam permissions. The hand model is downloaded on first use; an internet connection is required unless the model assets are self-hosted.

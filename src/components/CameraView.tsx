@@ -58,6 +58,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const startCamera = useCallback(async () => {
     try {
       setErrorMessage(null);
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera access is not supported by this browser.');
+      }
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
@@ -81,7 +84,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
       }
     } catch (err: unknown) {
       console.error('Camera access error:', err);
-      const msg = err instanceof Error ? err.message : 'Camera permission denied or camera not found.';
+      const msg =
+        err instanceof DOMException && err.name === 'NotFoundError'
+          ? 'No camera was found. Connect a camera and try again.'
+          : err instanceof DOMException && err.name === 'NotAllowedError'
+            ? 'Camera permission was denied. Allow camera access and try again.'
+            : err instanceof Error
+              ? err.message
+              : 'Camera permission denied or camera not found.';
       setErrorMessage(msg);
       setIsCameraActive(false);
     }
@@ -147,6 +157,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           onSignDetected(recognition);
         } else {
           setActiveSign(null);
+          onSignDetected({ sign: '...', confidence: 0, type: 'gesture' });
         }
 
         // FPS calculation
@@ -296,4 +307,3 @@ export const CameraView: React.FC<CameraViewProps> = ({
     </div>
   );
 };
-
