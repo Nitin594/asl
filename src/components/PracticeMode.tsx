@@ -23,6 +23,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [streak, setStreak] = useState(0);
   const [matchedTime, setMatchedTime] = useState(0);
   const [isSuccess, setIsSuccess] = useState(false);
+  const successTimeoutRef = useRef<number | null>(null);
 
   const practiceItems = ASL_CATALOG;
   const currentTarget = practiceItems[currentIndex % practiceItems.length];
@@ -63,7 +64,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             setStreak((st) => st + 1);
 
             // Move to next after brief pause
-            setTimeout(() => {
+            successTimeoutRef.current = window.setTimeout(() => {
               setCurrentIndex((idx) => (idx + 1) % practiceItems.length);
               setIsSuccess(false);
               setMatchedTime(0);
@@ -80,6 +81,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       setMatchedTime(0);
     }
   }, [isOpen, isSuccess, currentTarget, currentDetectedSign, practiceItems.length]);
+
+  useEffect(() => () => {
+    if (successTimeoutRef.current !== null) {
+      window.clearTimeout(successTimeoutRef.current);
+    }
+  }, []);
 
   if (!isOpen) return null;
 
@@ -197,4 +204,3 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     </div>
   );
 };
-
