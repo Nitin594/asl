@@ -83,7 +83,7 @@ export const App: React.FC = () => {
         return result;
       });
 
-      if (result.sign === '...' || result.confidence < 0.75) {
+      if (result.sign === '...' || result.confidence < 0.70) {
         if (holdSignRef.current !== null) {
           holdSignRef.current = null;
           holdStartTimeRef.current = null;

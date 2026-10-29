@@ -34,34 +34,37 @@ class MediaPipeVisionService {
     try {
       const wasmPaths = [
         '/node_modules/@mediapipe/tasks-vision/wasm',
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm',
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
       ];
       let lastError: unknown;
 
       for (const wasmPath of wasmPaths) {
         try {
           const vision = await FilesetResolver.forVisionTasks(wasmPath);
-          const options = {
-            baseOptions: {
-              modelAssetPath:
-                'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-              runningMode: 'VIDEO' as const,
-              numHands: 2,
-              minHandDetectionConfidence: 0.5,
-              minHandPresenceConfidence: 0.5,
-              minTrackingConfidence: 0.5,
-            },
+          const baseConfig = {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+          };
+
+          const taskOptions = {
+            runningMode: 'VIDEO' as const,
+            numHands: 2,
+            minHandDetectionConfidence: 0.45,
+            minHandPresenceConfidence: 0.45,
+            minTrackingConfidence: 0.45,
           };
 
           try {
             this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
-              ...options,
-              baseOptions: { ...options.baseOptions, delegate: 'GPU' },
+              ...taskOptions,
+              baseOptions: { ...baseConfig, delegate: 'GPU' },
             });
-          } catch {
+          } catch (gpuErr) {
+            console.warn('GPU acceleration unavailable for MediaPipe, falling back to CPU:', gpuErr);
             this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
-              ...options,
-              baseOptions: { ...options.baseOptions, delegate: 'CPU' },
+              ...taskOptions,
+              baseOptions: { ...baseConfig, delegate: 'CPU' },
             });
           }
           return this.handLandmarker;

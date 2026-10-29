@@ -47,7 +47,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       currentDetectedSign.sign.toUpperCase() === currentTarget.symbol.toUpperCase() ||
       (currentTarget.symbol.includes(currentDetectedSign.sign) && currentDetectedSign.sign !== '...');
 
-    if (matches && currentDetectedSign.confidence >= 0.75) {
+    if (matches && currentDetectedSign.confidence >= 0.70) {
       const interval = setInterval(() => {
         setMatchedTime((prev) => {
           if (prev >= 1) {
