@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Camera, CameraOff, Sparkles, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { mediaPipeService } from '../services/mediaPipeService';
 import { classifyHandGesture } from '../services/aslRecognizer';
-import { RecognitionResult } from '../types';
+import { Landmark, RecognitionResult } from '../types';
 
 interface CameraViewProps {
   onSignDetected: (result: RecognitionResult) => void;
@@ -22,6 +22,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const lastVideoTimeRef = useRef<number>(-1);
+  const lastLandmarksRef = useRef<Landmark[] | null>(null);
+  const activeSignRef = useRef<RecognitionResult | null>(null);
 
   const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
   const [showLandmarks, setShowLandmarks] = useState<boolean>(true);
@@ -104,6 +107,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
       stream.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
+    mediaPipeService.resetTimestamp();
+    lastVideoTimeRef.current = -1;
+    lastLandmarksRef.current = null;
+    activeSignRef.current = null;
     setIsCameraActive(false);
   }, []);
 
@@ -114,65 +121,98 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   // Main Detection & Render Loop
   const renderLoop = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
 
-    if (video && canvas && video.readyState >= 2) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        // Match canvas dimensions to video
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 480;
-        }
-
-        const width = canvas.width;
-        const height = canvas.height;
-
-        // Draw camera frame mirrored for natural webcam interaction
-        ctx.save();
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, -width, 0, width, height);
-        ctx.restore();
-
-        // Perform landmark detection
-        const now = performance.now();
-        const results = mediaPipeService.detectForVideo(video, now);
-
-        if (results && results.landmarks && results.landmarks.length > 0) {
-          const firstHandLandmarks = results.landmarks[0];
-
-          // Draw skeleton overlay if toggled
-          if (showLandmarks) {
-            mediaPipeService.drawLandmarks(ctx, firstHandLandmarks, width, height, true);
+      if (
+        video &&
+        canvas &&
+        video.readyState >= 2 &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0
+      ) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Match canvas dimensions to video
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
           }
 
-          // Classify gesture
-          const recognition = classifyHandGesture(firstHandLandmarks);
-          if (results.handednesses && results.handednesses[0]?.[0]?.categoryName) {
-            recognition.handedness = results.handednesses[0][0].categoryName as 'Left' | 'Right';
+          const width = canvas.width;
+          const height = canvas.height;
+
+          // Draw camera frame mirrored for natural webcam interaction at display refresh rate
+          ctx.save();
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, -width, 0, width, height);
+          ctx.restore();
+
+          const now = performance.now();
+
+          // Only perform heavy MediaPipe ML inference when the camera sensor provides a new frame
+          if (video.currentTime !== lastVideoTimeRef.current) {
+            lastVideoTimeRef.current = video.currentTime;
+
+            const results = mediaPipeService.detectForVideo(video, now);
+
+            if (results && results.landmarks && results.landmarks.length > 0) {
+              const firstHandLandmarks = results.landmarks[0];
+              lastLandmarksRef.current = firstHandLandmarks;
+
+              // Classify gesture
+              const recognition = classifyHandGesture(firstHandLandmarks);
+              if (results.handednesses && results.handednesses[0]?.[0]?.categoryName) {
+                recognition.handedness = results.handednesses[0][0].categoryName as 'Left' | 'Right';
+              }
+
+              // Throttle React state re-renders: only update state if the gesture or confidence meaningfully changed
+              const prev = activeSignRef.current;
+              if (
+                !prev ||
+                prev.sign !== recognition.sign ||
+                Math.abs(prev.confidence - recognition.confidence) > 0.08
+              ) {
+                activeSignRef.current = recognition;
+                setActiveSign(recognition);
+              }
+
+              onSignDetected(recognition);
+            } else {
+              lastLandmarksRef.current = null;
+              if (activeSignRef.current !== null) {
+                activeSignRef.current = null;
+                setActiveSign(null);
+              }
+              onSignDetected({ sign: '...', confidence: 0, type: 'gesture' });
+            }
           }
 
-          setActiveSign(recognition);
-          onSignDetected(recognition);
-        } else {
-          setActiveSign(null);
-          onSignDetected({ sign: '...', confidence: 0, type: 'gesture' });
-        }
+          // Draw skeleton overlay (cached or fresh) if toggled
+          if (showLandmarks && lastLandmarksRef.current) {
+            mediaPipeService.drawLandmarks(ctx, lastLandmarksRef.current, width, height, true);
+          }
 
-        // FPS calculation
-        frameCountRef.current++;
-        if (now - lastFpsTimeRef.current >= 1000) {
-          const fps = Math.round((frameCountRef.current * 1000) / (now - lastFpsTimeRef.current));
-          onFpsUpdate(fps);
-          frameCountRef.current = 0;
-          lastFpsTimeRef.current = now;
+          // FPS calculation
+          frameCountRef.current++;
+          if (now - lastFpsTimeRef.current >= 1000) {
+            const fps = Math.round((frameCountRef.current * 1000) / (now - lastFpsTimeRef.current));
+            onFpsUpdate(fps);
+            frameCountRef.current = 0;
+            lastFpsTimeRef.current = now;
+          }
         }
       }
+    } catch (err) {
+      console.error('Error in renderLoop:', err);
+    } finally {
+      // Always guarantee scheduling next frame so the loop never dies
+      if (isCameraActive) {
+        animationFrameRef.current = requestAnimationFrame(renderLoop);
+      }
     }
-
-    animationFrameRef.current = requestAnimationFrame(renderLoop);
-  }, [showLandmarks, onSignDetected, onFpsUpdate]);
+  }, [showLandmarks, onSignDetected, onFpsUpdate, isCameraActive]);
 
   useEffect(() => {
     if (isCameraActive) {

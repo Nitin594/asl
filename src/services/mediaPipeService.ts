@@ -78,9 +78,29 @@ class MediaPipeVisionService {
     }
   }
 
+  private lastTimestamp = -1;
+
   detectForVideo(videoElement: HTMLVideoElement, timestamp: number) {
     if (!this.handLandmarker) return null;
-    return this.handLandmarker.detectForVideo(videoElement, timestamp);
+    if (!videoElement || videoElement.videoWidth === 0 || videoElement.videoHeight === 0) return null;
+
+    try {
+      // MediaPipe requires strictly monotonically increasing timestamps
+      let safeTimestamp = Math.round(timestamp);
+      if (safeTimestamp <= this.lastTimestamp) {
+        safeTimestamp = this.lastTimestamp + 1;
+      }
+      this.lastTimestamp = safeTimestamp;
+
+      return this.handLandmarker.detectForVideo(videoElement, safeTimestamp);
+    } catch (err) {
+      console.warn('MediaPipe detection skipped frame:', err);
+      return null;
+    }
+  }
+
+  resetTimestamp() {
+    this.lastTimestamp = -1;
   }
 
   // Draw cyber-neon hand landmarks on HTML canvas

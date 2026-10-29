@@ -75,13 +75,21 @@ export const App: React.FC = () => {
   // Handle live sign stream from CameraView
   const handleSignDetected = useCallback(
     (result: RecognitionResult) => {
-      setCurrentDetectedSign(result);
+      // Avoid redundant state updates when sign hasn't changed
+      setCurrentDetectedSign((prev) => {
+        if (prev?.sign === result.sign && Math.abs(prev.confidence - result.confidence) < 0.05) {
+          return prev;
+        }
+        return result;
+      });
 
       if (result.sign === '...' || result.confidence < 0.75) {
-        holdSignRef.current = null;
-        holdStartTimeRef.current = null;
-        setHoldingSign(null);
-        setHoldProgress(0);
+        if (holdSignRef.current !== null) {
+          holdSignRef.current = null;
+          holdStartTimeRef.current = null;
+          setHoldingSign(null);
+          setHoldProgress(0);
+        }
         return;
       }
 
@@ -97,7 +105,7 @@ export const App: React.FC = () => {
         // Holding same gesture
         const elapsed = now - holdStartTimeRef.current;
         const progress = Math.min(elapsed / holdDuration, 1);
-        setHoldProgress(progress);
+        setHoldProgress((prev) => (Math.abs(prev - progress) > 0.03 || progress >= 1 ? progress : prev));
 
         if (progress >= 1) {
           commitSign(result);
